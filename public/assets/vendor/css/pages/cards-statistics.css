@@ -1,0 +1,7 @@
+.card-img-position {
+  block-size: 115%;
+}
+
+.transparent-card .avatar .avatar-initial {
+  background-color: var(--bs-paper-bg);
+}

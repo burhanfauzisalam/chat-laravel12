@@ -1,0 +1,27 @@
+/* Invoice Print
+******************************************************************************* */
+html,
+body {
+  background: var(--bs-white);
+}
+
+body > :not(.invoice-print) {
+  display: none !important;
+}
+
+.invoice-print {
+  font-size: 15px;
+  min-inline-size: 768px !important;
+}
+
+.invoice-print * {
+  color: #6d6777 !important;
+}
+
+.invoice-print .table thead tr th {
+  background-color: rgba(223, 223, 227, 0.2);
+}
+
+.invoice-print .text-primary * {
+  color: var(--bs-primary) !important;
+}
