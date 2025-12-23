@@ -33,6 +33,30 @@ class AuthController extends Controller
         ])->onlyInput('username');
     }
 
+    public function showRegister()
+    {
+        return view('auth.register');
+    }
+
+    public function register(Request $request)
+    {
+        $request->validate([
+            'username' => ['required', 'string', 'max:255', 'unique:users'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = \App\Models\User::create([
+            'username' => $request->username,
+            'password' => bcrypt($request->password),
+        ]);
+
+        Auth::login($user);
+
+        $request->session()->regenerate();
+
+        return redirect()->route('chat.index');
+    }
+
     public function logout(Request $request)
     {
         Auth::logout();
