@@ -1,42 +1,20 @@
 @php
-    $mqttHost = $mqttConfig['host'] ?? 'localhost';
-    $mqttWsPort = $mqttConfig['ws_port'] ?? 9001;
-    $mqttUseTls = $mqttConfig['use_tls'] ?? false;
-    $mqttTopic = $activeTopic;
-    $clientIdPrefix = $mqttConfig['client_id_prefix'] ?? 'laravel-chat-';
-    $currentUser = $currentUser ?? 'User';
-    $initialMessages = $messages ?? collect();
-    $rooms = $rooms ?? collect();
+  $mqttHost = $mqttConfig['host'] ?? 'localhost';
+  $mqttWsPort = $mqttConfig['ws_port'] ?? 9001;
+  $mqttUseTls = $mqttConfig['use_tls'] ?? false;
+  $mqttTopic = $activeTopic;
+  $clientIdPrefix = $mqttConfig['client_id_prefix'] ?? 'laravel-chat-';
+  $currentUser = $currentUser ?? 'User';
+  $initialMessages = $messages ?? collect();
+  $rooms = $rooms ?? collect();
+  $authUser = auth()->user();
+  $avatarUrl = $authUser?->avatar_url ?? asset('assets/img/avatars/1.png');
 @endphp
 
-<!doctype html>
-<html
-  lang="en"
-  class="layout-navbar-fixed layout-menu-fixed layout-compact"
-  dir="ltr"
-  data-skin="default"
-  data-assets-path="{{ asset('assets/') }}/"
-  data-template="horizontal-menu-template-no-customizer"
-  data-bs-theme="light">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-    <title>Chat App - MQTT</title>
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+<x-layout>
+  <x-slot name="title">Chat App - MQTT</x-slot>
 
-    <link rel="icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&ampdisplay=swap" rel="stylesheet" />
-
-    <link rel="stylesheet" href="{{ asset('assets/vendor/fonts/iconify-icons.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/vendor/libs/node-waves/node-waves.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/vendor/css/core.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/css/demo.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/vendor/libs/maxLength/maxLength.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/vendor/libs/sweetalert2/sweetalert2.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/vendor/css/pages/app-chat.css') }}" />
+  <x-slot name="styles">
     <style>
       /* Make main content container fill viewport on chat page */
       .container-xxl.flex-grow-1.container-p-y {
@@ -141,401 +119,25 @@
 
       .app-chat .app-chat-history .chat-history-footer {
         margin-bottom: 1.75rem;
-        /* padding-top: 0.75rem;
-        padding-bottom: 1.75rem; */
       }
     </style>
+  </x-slot>
 
-    <script src="{{ asset('assets/vendor/js/helpers.js') }}"></script>
-    <script src="{{ asset('assets/js/config.js') }}"></script>
-    <script src="{{ asset('assets/vendor/libs/sweetalert2/sweetalert2.js') }}"></script>
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  </head>
-
-  <body>
-    @php
-      $authUser = auth()->user();
-      $avatarUrl = $authUser?->avatar_url ?? asset('assets/img/avatars/1.png');
-    @endphp
-    <div class="layout-wrapper layout-navbar-full layout-horizontal layout-without-menu">
-      <div class="layout-container">
-        <!-- Layout container -->
-        <div class="layout-page">
-          <!-- Content wrapper -->
-          <div class="content-wrapper">
-            <!-- Content -->
-            <div class="container-xxl flex-grow-1 container-p-y">
-              <div class="app-chat card overflow-hidden">
-                <div class="row g-0">
-                  <!-- Sidebar Left-->
-                  <div class="col app-chat-sidebar-left app-sidebar flex-grow-0 overflow-hidden border-end" id="app-chat-sidebar-left">
-                    <div class="chat-sidebar-left-user sidebar-header d-flex flex-column justify-content-center align-items-center flex-wrap px-6 pt-12">
-                      <div class="avatar avatar-xl avatar-online">
-                        <img src="{{ $avatarUrl }}" alt="Avatar" class="rounded-circle" />
-                      </div>
-                      <h5 class="mt-4 mb-0">{{ auth()->user()->username ?? 'User' }}</h5>
-                      <span>User</span>
-                      <div class="d-flex align-items-center mt-2">
-                        <i class="icon-base ri ri-check-line text-success me-1"></i><small class="text-success">Online</small>
-                      </div>
-                    </div>
-                    <div class="sidebar-body px-6 pb-6 pt-2">
-                      <div class="my-6">
-                        <p class="text-uppercase text-body-secondary mb-1">Profile photo</p>
-                        <form method="POST" action="{{ route('profile.avatar.update') }}" enctype="multipart/form-data">
-                          @csrf
-                          <div class="input-group input-group-sm">
-                            <input type="file" name="avatar" accept="image/*" class="form-control" required />
-                            <button type="submit" class="btn btn-primary">Upload</button>
-                          </div>
-                          @error('avatar')
-                            <small class="text-danger d-block mt-1">{{ $message }}</small>
-                          @enderror
-                          @if (session('status') === 'Profile photo updated.')
-                            <small class="text-success d-block mt-1">Photo updated.</small>
-                          @endif
-                        </form>
-                      </div>
-                      <div class="d-flex mt-6">
-                        <form method="POST" action="{{ route('logout') }}" class="w-100">
-                          @csrf
-                          <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center">
-                            Logout<i class="icon-base ri ri-logout-box-r-line icon-xs ms-1"></i>
-                          </button>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- /Sidebar Left-->
-
-                  <!-- Chat & Contacts -->
-                  <div class="col app-chat-contacts app-sidebar flex-grow-0 overflow-hidden border-end" id="app-chat-contacts">
-                    <div class="sidebar-header px-5 border-bottom d-flex align-items-center">
-                      <div class="d-flex align-items-center me-6 me-lg-0">
-                        <div class="flex-shrink-0 avatar avatar-online me-4" data-bs-toggle="sidebar" data-overlay="app-overlay-ex" data-target="#app-chat-sidebar-left">
-                          <img class="user-avatar rounded-circle cursor-pointer" src="{{ $avatarUrl }}" alt="Avatar" />
-                        </div>
-                        <div class="flex-grow-1 input-group input-group-sm input-group-merge rounded-pill">
-                          <span class="input-group-text" id="basic-addon-search31"><i class="icon-base ri ri-search-line icon-20px"></i></span>
-                          <input type="text" class="form-control chat-search-input" placeholder="Search..." aria-label="Search..." aria-describedby="basic-addon-search31" />
-                        </div>
-                      </div>
-                      <i class="icon-base ri ri-close-line icon-lg cursor-pointer position-absolute top-50 end-0 translate-middle d-lg-none d-block" data-overlay data-bs-toggle="sidebar" data-target="#app-chat-contacts"></i>
-                    </div>
-                    <div class="sidebar-body">
-                      <ul class="list-unstyled chat-contact-list py-2 mb-0" id="chat-list">
-                        <li class="chat-contact-list-item chat-contact-list-item-title mt-0 d-flex justify-content-between align-items-center px-4">
-                          <h5 class="text-primary mb-0">Rooms</h5>
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-icon btn-text-primary"
-                            data-bs-toggle="modal"
-                            data-bs-target="#addRoomModal"
-                            title="Add room"
-                          >
-                            <i class="icon-base ri ri-add-line icon-20px"></i>
-                          </button>
-                        </li>
-                        @forelse($rooms as $room)
-                          <li
-                            class="chat-contact-list-item mb-1 {{ $room->topic === $mqttTopic ? 'active' : '' }}"
-                            data-room-topic="{{ $room->topic }}"
-                            data-room-name="{{ $room->name }}"
-                          >
-                            @php
-                              $roomLinkParams = ['topic' => $room->topic];
-                              if (!empty($mqttTopic) && $mqttTopic !== $room->topic) {
-                                  $roomLinkParams['mark_read'] = $mqttTopic;
-                              }
-                            @endphp
-                            <a class="d-flex align-items-center" href="{{ route('chat.index', $roomLinkParams) }}">
-                              <div class="flex-shrink-0 avatar avatar-online">
-                                <span class="avatar-initial rounded-circle bg-label-primary">{{ strtoupper(substr($room->name,0,2)) }}</span>
-                              </div>
-                              <div class="chat-contact-info flex-grow-1 ms-4">
-                                <div class="d-flex justify-content-between align-items-center">
-                                  <h6 class="chat-contact-name text-truncate fw-normal m-0">
-                                    {{ $room->name }}
-                                    <span class="text-body-secondary">({{ $room->users_count ?? 0 }})</span>
-                                  </h6>
-                                  @if(($room->unread_count ?? 0) > 0)
-                                    <span
-                                      class="badge bg-label-primary rounded-pill ms-2 room-unread-badge"
-                                      data-room-topic="{{ $room->topic }}"
-                                    >
-                                      {{ $room->unread_count }}
-                                    </span>
-                                  @endif
-                                </div>
-                                <small class="chat-contact-status text-truncate">{{ $room->topic }}</small>
-                              </div>
-                            </a>
-                          </li>
-                        @empty
-                          <li class="chat-contact-list-item chat-list-item-0">
-                            <h6 class="text-body-secondary mb-0">No Rooms Found</h6>
-                          </li>
-                        @endforelse
-                      </ul>
-                    </div>
-                  </div>
-                  <!-- /Chat contacts -->
-
-                  <!-- Chat History -->
-                  <div class="col app-chat-history">
-                    <div class="chat-history-wrapper">
-                      <div class="chat-history-header border-bottom">
-                        <div class="d-flex justify-content-between align-items-center">
-                          <div class="d-flex align-items-center">
-                            <div class="flex-shrink-0 avatar avatar-online d-lg-none d-block me-4" data-bs-toggle="sidebar" data-overlay="app-overlay-ex" data-target="#app-chat-sidebar-left">
-                              <img src="{{ $avatarUrl }}" alt="Avatar" class="rounded-circle" />
-                            </div>
-                            <div class="d-flex flex-column">
-                              <h6 class="mb-1">
-                                @if ($mqttTopic)
-                                  Room: {{ $mqttTopic }}
-                                @else
-                                  No room selected
-                                @endif
-                              </h6>
-                              {{-- <small class="text-body-secondary">
-                                MQTT {{ $mqttHost }}:{{ $mqttWsPort }} (WebSocket)
-                              </small> --}}
-                            </div>
-                          </div>
-                          <div class="d-flex align-items-center">
-                            <span class="badge bg-label-success me-3" id="mqtt-status">
-                              {{ $mqttTopic ? 'Connecting...' : 'No room' }}
-                            </span>
-                            @if (isset($activeRoom) && $mqttTopic)
-                              <div class="d-flex align-items-center">
-                                <button
-                                  type="button"
-                                  class="btn btn-sm btn-text-secondary ms-2"
-                                  data-bs-toggle="sidebar"
-                                  data-overlay
-                                  data-target="#app-chat-sidebar-right"
-                                  title="Room info"
-                                >
-                                  <i class="icon-base ri ri-information-line icon-18px"></i>
-                                </button>
-                              </div>
-                            @endif
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="chat-history-body ps ps--active-y" id="chat-messages">
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-text-secondary w-100 mb-2 d-none"
-                          id="load-older-messages-btn"
-                        >
-                          Load earlier messages
-                        </button>
-                        <ul class="list-unstyled chat-history" id="chat-history-list"></ul>
-                      </div>
-
-                      <div class="chat-history-footer shadow-xs">
-                        <form class="form-send-message d-flex justify-content-between align-items-center" id="chat-form" data-disable-default-send="1">
-                          <input class="form-control message-input border-0 me-4 shadow-none" placeholder="Type your message here..." id="message-input" />
-                          <div class="message-actions d-flex align-items-center">
-                            <label class="form-label mb-0 me-1">
-                              <span class="btn btn-text-secondary btn-icon rounded-pill cursor-pointer">
-                                <i class="icon-base ri ri-attachment-2 icon-md text-heading"></i>
-                              </span>
-                              <input type="file" id="chat-file-input" hidden />
-                            </label>
-                            <span class="badge bg-label-secondary ms-1 d-none" id="chat-file-badge"></span>
-                            <button type="submit" class="btn btn-primary d-flex send-msg-btn">
-                              <span class="align-middle d-md-inline-block d-none">Send</span>
-                              <i class="icon-base ri ri-send-plane-line icon-sm ms-md-2 ms-0"></i>
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- /Chat History -->
-
-                  <!-- Sidebar Right -->
-                  <div class="col app-chat-sidebar-right app-sidebar overflow-hidden" id="app-chat-sidebar-right">
-                    <div class="sidebar-header d-flex flex-column justify-content-center align-items-center flex-wrap px-6 pt-12">
-                      @if (isset($activeRoom))
-                        <div class="avatar avatar-xl avatar-online chat-sidebar-avatar">
-                          <span class="avatar-initial rounded-circle bg-label-primary">
-                            {{ strtoupper(substr($activeRoom->name, 0, 2)) }}
-                          </span>
-                        </div>
-                        <h5 class="mt-4 mb-0">{{ $activeRoom->name }}</h5>
-                        <span class="text-body-secondary">
-                          {{ $activeRoom->topic }}
-                        </span>
-                        <span class="text-body-secondary small">
-                          {{ $activeRoom->users->count() }} member{{ $activeRoom->users->count() === 1 ? '' : 's' }}
-                        </span>
-                      @else
-                        <h5 class="mt-4 mb-0">Room info</h5>
-                        <span class="text-body-secondary small">No room selected</span>
-                      @endif
-                      <i
-                        class="icon-base ri ri-close-line icon-24px cursor-pointer close-sidebar d-block"
-                        data-bs-toggle="sidebar"
-                        data-overlay
-                        data-target="#app-chat-sidebar-right"
-                      ></i>
-                    </div>
-                    <div class="sidebar-body p-6 pt-0">
-                      <div class="my-6">
-                        <p class="text-uppercase mb-1 text-body-secondary">Members</p>
-                        <ul class="list-unstyled d-grid gap-3 mb-0 py-2 text-heading">
-                          @if (isset($activeRoom) && $activeRoom->users->count())
-                            @foreach ($activeRoom->users as $member)
-                              <li class="d-flex align-items-center">
-                                <div class="avatar avatar-sm">
-                                  <span class="avatar-initial rounded-circle bg-label-primary">
-                                    {{ strtoupper(substr($member->username, 0, 2)) }}
-                                  </span>
-                                </div>
-                                <div class="ms-3">
-                                  <div class="fw-medium">{{ $member->username }}</div>
-                                </div>
-                              </li>
-                            @endforeach
-                          @else
-                            <li class="text-body-secondary">No members in this room.</li>
-                          @endif
-                        </ul>
-                      </div>
-
-                      @if (isset($activeRoom))
-                        @php
-                          $inviteUrl = route('rooms.join', $activeRoom);
-                        @endphp
-                        <div class="my-6">
-                          <p class="text-uppercase mb-1 text-body-secondary">Invite link</p>
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-primary"
-                            id="copy-invite-link-btn"
-                            data-invite-url="{{ $inviteUrl }}"
-                          >
-                            Copy link
-                          </button>
-                          <small class="text-body-secondary d-block mt-1 d-none" id="copy-invite-link-feedback">
-                            Link copied
-                          </small>
-                        </div>
-                        <div class="my-6">
-                          <p class="text-uppercase mb-1 text-body-secondary">Actions</p>
-                          <form method="POST" action="{{ route('rooms.leave', $activeRoom) }}" class="leave-room-form">
-                            @csrf
-                            <button type="submit" class="btn btn-outline-danger w-100 leave-room-btn">
-                              Leave room
-                            </button>
-                          </form>
-                        </div>
-                      @endif
-                    </div>
-                  </div>
-                  <!-- /Sidebar Right -->
-
-                  <div class="app-overlay"></div>
-                </div>
-              </div>
-            </div>
-            <!--/ Content -->
-
-            <!-- Footer -->
-            {{-- <footer class="content-footer footer bg-footer-theme">
-              <div class="container-xxl">
-                <div class="footer-container d-flex align-items-center justify-content-between py-4 flex-md-row flex-column">
-                  <div class="mb-2 mb-md-0">
-                    © <script>document.write(new Date().getFullYear());</script>,
-                  </div>
-                </div>
-              </div>
-            </footer> --}}
-            <!-- / Footer -->
-
-            <div class="content-backdrop fade"></div>
-          </div>
-          <!--/ Content wrapper -->
-        </div>
-        <!--/ Layout container -->
-      </div>
+  <div class="app-chat card overflow-hidden">
+    <div class="row g-0">
+      <x-sidebar-left :user="$authUser" :avatarUrl="$avatarUrl" />
+      <x-contacts :rooms="$rooms" :mqttTopic="$mqttTopic" :avatarUrl="$avatarUrl" />
+      <x-chat-history :mqttTopic="$mqttTopic" :activeRoom="$activeRoom ?? null" :avatarUrl="$avatarUrl" />
+      <x-sidebar-right :activeRoom="$activeRoom ?? null" />
+      <div class="app-overlay"></div>
     </div>
+  </div>
 
-    <!-- Add Room Modal -->
-    <div class="modal fade" id="addRoomModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Add room</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <form method="POST" action="{{ route('rooms.store') }}">
-            @csrf
-            <div class="modal-body">
-              <div class="mb-3">
-                <label class="form-label" for="room_name">Room name</label>
-                <input
-                  type="text"
-                  id="room_name"
-                  name="room_name"
-                  class="form-control"
-                  placeholder="Room name"
-                  value="{{ old('room_name') }}"
-                  required
-                />
-                @error('room_name')
-                  <small class="text-danger d-block mt-1">{{ $message }}</small>
-                @enderror
-              </div>
-              <div class="mb-3">
-                <label class="form-label" for="room_topic">Topic</label>
-                <input
-                  type="text"
-                  id="room_topic"
-                  name="room_topic"
-                  class="form-control"
-                  placeholder="Contoh: chat/support"
-                  value="{{ old('room_topic') }}"
-                  required
-                />
-                @error('room_topic')
-                  <small class="text-danger d-block mt-1">{{ $message }}</small>
-                @enderror
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-text-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-primary">Create room</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+  <x-slot name="modals">
+    <x-add-room-modal />
+  </x-slot>
 
-    <div class="layout-overlay layout-menu-toggle"></div>
-    <div class="drag-target"></div>
-
-    <!-- Core JS -->
-    <script src="{{ asset('assets/vendor/libs/jquery/jquery.js') }}"></script>
-    <script src="{{ asset('assets/vendor/libs/popper/popper.js') }}"></script>
-    <script src="{{ asset('assets/vendor/js/bootstrap.js') }}"></script>
-    <script src="{{ asset('assets/vendor/libs/node-waves/node-waves.js') }}"></script>
-    <script src="{{ asset('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js') }}"></script>
-    <script src="{{ asset('assets/vendor/libs/hammer/hammer.js') }}"></script>
-    <script src="{{ asset('assets/vendor/libs/i18n/i18n.js') }}"></script>
-    <script src="{{ asset('assets/vendor/js/menu.js') }}"></script>
-
-    <!-- Main JS -->
-    <script src="{{ asset('assets/js/main.js') }}"></script>
-
-    <!-- Page JS -->
-    <script src="{{ asset('assets/js/app-chat.js') }}"></script>
-
+  <x-slot name="scripts">
     <script>
       document.addEventListener('DOMContentLoaded', function () {
         @if ($errors->has('room_name') || $errors->has('room_topic'))
@@ -558,7 +160,7 @@
         const clientIdPrefix = @json($clientIdPrefix);
         const currentUser = @json($currentUser);
         const initialMessages = @json($initialMessages);
-        const activeLastReadAt = @json($activeLastReadAt);
+        const activeLastReadAt = @json($activeLastReadAt ?? null);
         const notificationIcon = @json(asset('assets/img/favicon/favicon.ico'));
         const selfAvatarUrl = @json($avatarUrl);
         const userAvatars = @json($userAvatars ?? []);
@@ -597,7 +199,7 @@
             statusEl.classList.add('bg-label-danger');
           }
           if (form) {
-            const submitBtn = form.querySelector('button[type=\"submit\"]');
+            const submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn) {
               submitBtn.setAttribute('disabled', 'disabled');
             }
@@ -697,9 +299,7 @@
                   loadOlderBtn.classList.add('d-none');
                 }
               })
-              .catch((err) => {
-                console.error(err);
-              })
+              .catch((err) => { console.error(err); })
               .finally(() => {
                 loadOlderBtn.disabled = false;
                 loadOlderBtn.textContent = originalText;
@@ -955,7 +555,7 @@
             ? ''
             : `<div class="user-avatar flex-shrink-0 me-4">
                  <div class="avatar avatar-sm">
-                   ${
+                   ${ 
                      effectiveAvatar
                        ? `<img src="${effectiveAvatar}" alt="${sender || 'User'}" class="rounded-circle" />`
                        : `<span class="avatar-initial rounded-circle bg-label-primary">${(sender || 'U').slice(0, 2).toUpperCase()}</span>`
@@ -966,7 +566,7 @@
           const rightAvatarHtml = self
             ? `<div class="user-avatar flex-shrink-0 ms-4">
                  <div class="avatar avatar-sm">
-                   ${
+                   ${ 
                      effectiveAvatar
                        ? `<img src="${effectiveAvatar}" alt="${sender || 'You'}" class="rounded-circle" />`
                        : `<span class="avatar-initial rounded-circle bg-label-success">Y</span>`
@@ -1105,7 +705,7 @@
             if (!msg && !file) return;
             if (!client || !client.connected) return;
 
-            const csrf = document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content');
+            const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             // Simpan ke DB lewat API (dengan dukungan file), lalu publish MQTT
             const formData = new FormData();
             formData.append('topic', mqttTopic);
@@ -1169,5 +769,5 @@
         }
       })();
     </script>
-  </body>
-</html>
+  </x-slot>
+</x-layout>
