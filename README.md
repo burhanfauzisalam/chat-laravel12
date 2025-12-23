@@ -65,8 +65,16 @@ Aplikasi dibangun di atas **Laravel** standar, sehingga seluruh dokumentasi dasa
    ```env
    MQTT_HOST=127.0.0.1
    MQTT_WS_PORT=9001        # Port WebSocket broker
-   MQTT_USE_TLS=false
+   MQTT_USE_TLS=false       # Ubah ke true jika akses via HTTPS / Traefik (wss)
    MQTT_CLIENT_ID_PREFIX=laravel-chat-
+
+   # Contoh jika aplikasi di-deploy di belakang Traefik dengan HTTPS:
+   # - Traefik menerima wss://chat.example.com di port 443
+   # - Traefik meneruskan ke broker MQTT (ws) di jaringan internal, mis. mqtt:9001
+   # Maka di .env aplikasi Laravel:
+   # MQTT_HOST=chat.example.com
+   # MQTT_WS_PORT=443
+   # MQTT_USE_TLS=true
    ```
 
 6. **Jalankan migrasi database**

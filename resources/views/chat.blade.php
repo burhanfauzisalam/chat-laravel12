@@ -575,7 +575,8 @@
         const copyInviteFeedback = document.getElementById('copy-invite-link-feedback');
         const loadOlderBtn = document.getElementById('load-older-messages-btn');
 
-        const protocol = mqttUseTls ? 'wss' : 'ws';
+        // Jika halaman di-load lewat HTTPS, pakai wss untuk menghindari mixed content.
+        const protocol = mqttUseTls || window.location.protocol === 'https:' ? 'wss' : 'ws';
         const url = protocol + '://' + mqttHost + ':' + mqttWsPort;
         const clientId = clientIdPrefix + Math.random().toString(16).substr(2, 8);
 
