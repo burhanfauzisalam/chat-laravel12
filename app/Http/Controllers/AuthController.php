@@ -21,7 +21,11 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
-            return redirect()->intended(route('chat.index'));
+            // Di environment dengan Traefik + PathPrefix(/chat) + StripPrefix,
+            // URL "intended" yang disimpan Laravel tidak mengandung prefix /chat.
+            // Untuk memastikan user selalu kembali ke halaman chat yang benar,
+            // arahkan langsung ke route chat.index (APP_URL sudah mengandung /chat).
+            return redirect()->route('chat.index');
         }
 
         return back()->withErrors([
@@ -37,5 +41,4 @@ class AuthController extends Controller
         return redirect()->route('login');
     }
 }
-
 
