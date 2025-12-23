@@ -1,59 +1,228 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+## Materio Chat App (Laravel + MQTT)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi ini adalah contoh implementasi **real‑time group chat** berbasis Laravel dengan tampilan **Materio Bootstrap HTML** dan backend realtime menggunakan **MQTT**.
 
-## About Laravel
+Fitur utama:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Multi room chat (join/leave room, tambah room sendiri).
+- Unread badge per room & divider **“New messages”** pada pesan baru.
+- Pencarian room berdasarkan nama/topik (live search).
+- Invite link menggunakan **kode unik** (bukan ID).
+- Pengiriman pesan teks dan **lampiran file** (gambar / dokumen).
+- Upload dan penggunaan **foto profil** untuk setiap user.
+- List member di **Room Info** + auto hapus room jika tidak ada member.
+- Lazy loading riwayat chat (tombol **Load earlier messages**).
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Aplikasi dibangun di atas **Laravel** standar, sehingga seluruh dokumentasi dasar Laravel (routing, migration, dsb.) tetap berlaku.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## 1. Persyaratan
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+- PHP 8.1+
+- Composer
+- MySQL atau MariaDB
+- Node.js (opsional, hanya jika ingin meng-compile asset sendiri)
+- Broker MQTT dengan dukungan WebSocket (contoh: Mosquitto yang di-enable WS‑nya)
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## 2. Instalasi
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+1. **Clone / copy project**
 
-### Premium Partners
+   ```bash
+   git clone <repo-anda>
+   cd chat-app
+   ```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+2. **Install dependency PHP**
 
-## Contributing
+   ```bash
+   composer install
+   ```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+3. **Siapkan file `.env`**
 
-## Code of Conduct
+   ```bash
+   cp .env.example .env
+   php artisan key:generate
+   ```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+4. **Atur koneksi database** di `.env`
 
-## Security Vulnerabilities
+   ```env
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=chat_app
+   DB_USERNAME=root
+   DB_PASSWORD=
+   ```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+5. **Atur konfigurasi MQTT** di `.env`
 
-## License
+   ```env
+   MQTT_HOST=127.0.0.1
+   MQTT_WS_PORT=9001        # Port WebSocket broker
+   MQTT_USE_TLS=false
+   MQTT_CLIENT_ID_PREFIX=laravel-chat-
+   ```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+6. **Jalankan migrasi database**
+
+   ```bash
+   php artisan migrate
+   ```
+
+7. **Buat symbolic link storage (jika belum)**
+
+   ```bash
+   php artisan storage:link
+   ```
+
+8. **Jalankan server Laravel**
+
+   ```bash
+   php artisan serve
+   ```
+
+   Aplikasi default akan berjalan di `http://127.0.0.1:8000`.
+
+---
+
+## 3. Fitur & Cara Penggunaan
+
+### 3.1. Autentikasi & Profil
+
+- Login menggunakan sistem autentikasi Laravel (contoh: Jetstream/Breeze, sesuaikan dengan implementasi Anda).
+- Klik avatar di sidebar kiri untuk membuka **profil user**.
+- Di panel profil ini tersedia:
+  - Form **upload foto profil** (disimpan di `storage/app/public/avatars`).
+  - Tombol **Logout**.
+
+Foto profil akan otomatis digunakan:
+
+- Di avatar sidebar.
+- Pada bubble pesan yang dikirim user.
+- Pada bubble pesan user lain (dari mapping avatar yang dikirim backend).
+
+### 3.2. Rooms
+
+- Sidebar kiri menampilkan list **Rooms**.
+- Di sebelah judul **Rooms** ada tombol **“+”** untuk membuka modal **Add Room**.
+- Form tambah room berisi:
+  - `Room name`
+  - `Topic` (unik, tidak boleh sama dengan room lain).
+- Setelah room dibuat:
+  - User otomatis join ke room tersebut.
+  - Room akan muncul di list, beserta jumlah member.
+
+**Room kosong** (tidak ada user di dalamnya) akan otomatis **dihapus** ketika user terakhir melakukan **Leave room**.
+
+### 3.3. Join via Invite Link
+
+- Di **Room Info** (sidebar kanan) terdapat tombol **Copy link**.
+- Link tersebut berisi **kode unik** room, misalnya:
+
+  ```text
+  https://your-app.test/rooms/join/{invite_code}
+  ```
+
+- Bagikan link ini ke user lain. Ketika dibuka, user akan otomatis diarahkan untuk **join** ke room terkait (jika belum menjadi member).
+
+### 3.4. Room Info & Leave Room
+
+- Klik ikon **info** di header chat untuk membuka **Room Info**.
+- Di Room Info terdapat:
+  - Nama room & topic.
+  - Jumlah member + daftar member (username).
+  - Tombol **Copy link** (invite).
+  - Tombol **Leave room**.
+- Saat menekan **Leave room**, akan muncul konfirmasi SweetAlert.
+
+Jika setelah leave tidak ada user lain di room tersebut, room akan **dihapus** beserta pesan‑pesannya.
+
+### 3.5. Pencarian Room
+
+- Kolom search di bagian atas sidebar Rooms dapat mencari berdasarkan:
+  - Nama room.
+  - Topic room.
+- Hasil filter muncul **real‑time** di list rooms (tanpa reload).
+
+### 3.6. Pengiriman Pesan & File
+
+- Form input di bagian bawah area chat:
+  - Ketik pesan di field **“Type your message here…”**.
+  - Klik ikon **attachment** untuk memilih file (gambar / dokumen).
+  - Setelah file dipilih, nama file akan muncul di badge kecil di samping ikon.
+  - Tekan **Send** untuk mengirim.
+- Pesan akan:
+  - Disimpan ke database via endpoint `messages.store`.
+  - Dipublish ke broker MQTT dalam format JSON.
+  - Ditampilkan di UI untuk pengirim dan semua user yang subscribe pada room tersebut.
+- Lampiran:
+  - Jika bertipe gambar, akan ditampilkan preview gambar.
+  - Jika file biasa (PDF, DOCX, dll), muncul sebagai bubble dengan ikon paperclip + nama file, dan dapat diklik (link ke storage publik).
+
+### 3.7. Unread Badge & Divider “New Messages”
+
+- Setiap room menyimpan `last_read_at` per user (pivot `room_user`).
+- Ketika ada pesan baru di sebuah room dan user **tidak sedang berada** di room tersebut:
+  - Badge **unread** akan muncul di item room (jumlah pesan baru).
+- Saat user membuka room:
+  - `last_read_at` diupdate.
+  - Pesan‑pesan yang *baru* (setelah `last_read_at` sebelumnya) akan diberi pembatas **“New messages”** di dalam riwayat chat.
+  - Divider ini secara otomatis menghilang setelah pesan dianggap terbaca (di-refresh / masuk kembali).
+
+### 3.8. Lazy Loading Riwayat Chat
+
+- Saat membuka room, hanya **50 pesan terakhir** yang di-load.
+- Jika masih ada riwayat lebih lama, di bagian atas list pesan akan muncul tombol **“Load earlier messages”**.
+- Klik tombol ini untuk memuat 50 pesan sebelumnya lagi, tanpa mengubah posisi scroll secara mendadak.
+
+---
+
+## 4. Struktur File Penting
+
+- `resources/views/chat.blade.php`  
+  Tampilan utama aplikasi chat (layout Materio, sidebar rooms, room info, form kirim pesan, dan script JS MQTT).
+
+- `app/Http/Controllers/ChatController.php`  
+  Mengambil data rooms, pesan awal, unread count, avatar user, dan flag riwayat (hasMoreHistory, oldestMessageId).
+
+- `app/Http/Controllers/MessageController.php`  
+  Menyimpan pesan baru (teks + file), mengembalikan response JSON yang dipakai untuk publish MQTT dan render bubble.
+
+- `app/Http/Controllers/HistoryMessageController.php`  
+  Endpoint AJAX untuk **Load earlier messages**.
+
+- `app/Http/Controllers/RoomController.php`  
+  CRUD room (store, join, leave), generate invite code, dan hapus room ketika tidak ada member.
+
+- `app/Http/Controllers/ProfileController.php`  
+  Upload dan update foto profil user.
+
+- `app/Models/Message.php`, `app/Models/User.php`  
+  Accessor `attachment_url` dan `avatar_url` untuk dipakai di frontend.
+
+- `public/assets/js/app-chat.js`  
+  Script template Materio yang mengatur search, sidebar, dan sebagian behavior chat bawaan (submit default sudah dinonaktifkan dengan atribut `data-disable-default-send`).
+
+---
+
+## 5. Catatan Pengembangan
+
+- Jangan mengubah atribut `data-disable-default-send="1"` pada form kirim pesan di `chat.blade.php`, karena akan menyebabkan bubble pesan ganda pada pengirim.
+- Jika mengubah struktur payload MQTT, pastikan penyesuaian juga dilakukan di:
+  - `MessageController` (response JSON).
+  - Script MQTT di `chat.blade.php` (handler `client.on('message')`).
+- Untuk mengubah batas jumlah pesan per halaman riwayat, sesuaikan nilai limit (50) di `ChatController` dan `HistoryMessageController`.
+
+---
+
+## 6. Lisensi
+
+Project ini dibangun di atas **Laravel** dan **Materio Bootstrap HTML Admin Template**.  
+Lisensi Laravel mengikuti [MIT License](https://opensource.org/licenses/MIT);  
+lisensi Materio mengikuti ketentuan dari penyedia templatenya. Silakan sesuaikan penggunaan sesuai lisensi masing‑masing. 
