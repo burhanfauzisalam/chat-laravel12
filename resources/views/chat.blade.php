@@ -164,6 +164,12 @@
         const notificationIcon = @json(asset('assets/img/favicon/favicon.ico'));
         const selfAvatarUrl = @json($avatarUrl);
         const userAvatars = @json($userAvatars ?? []);
+        const geminiTopic = @json(config('services.gemini.topic'));
+        const isGeminiTopic = Boolean(mqttTopic && geminiTopic && mqttTopic === geminiTopic);
+        const deepseekTopic = @json(config('services.deepseek.topic'));
+        const isDeepseekTopic = Boolean(mqttTopic && deepseekTopic && mqttTopic === deepseekTopic);
+        const groqTopic = @json(config('services.groq.topic'));
+        const isGroqTopic = Boolean(mqttTopic && groqTopic && mqttTopic === groqTopic);
         let hasMoreHistory = @json($hasMoreHistory ?? false);
         let oldestMessageId = @json($oldestMessageId ?? null);
 
@@ -505,6 +511,37 @@
           }
         }
 
+        function escapeHtml(str) {
+          return (str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        function normalizeHtmlToText(html) {
+          if (!html) return '';
+          let text = html;
+
+          text = text.replace(/<br\s*\/?>/gi, '\n');
+          text = text.replace(/<\/p>\s*<p>/gi, '\n\n');
+          text = text.replace(/<\/p>/gi, '\n\n');
+          text = text.replace(/<p[^>]*>/gi, '');
+          text = text.replace(/<li[^>]*>/gi, '- ');
+          text = text.replace(/<\/li>/gi, '\n');
+          text = text.replace(/<ul[^>]*>/gi, '\n');
+          text = text.replace(/<\/ul>/gi, '\n');
+          text = text.replace(/<h[1-6][^>]*>/gi, '\n');
+          text = text.replace(/<\/h[1-6]>/gi, '\n');
+
+          text = text.replace(/<[^>]+>/g, '');
+          text = text.replace(/\r\n/g, '\n');
+          text = text.replace(/\n{3,}/g, '\n\n');
+
+          return text.trim();
+        }
+
         function addMessage(message, self = false, sender = 'User', noScroll = false, avatarUrl = null) {
           let text = '';
           let attachmentUrl = null;
@@ -589,7 +626,10 @@
               </div>
               ${rightAvatarHtml}
             </div>`;
-          li.querySelector('p').textContent = text;
+          const textEl = li.querySelector('p');
+          const normalized = normalizeHtmlToText(text);
+          const safeHtml = escapeHtml(normalized).replace(/\n/g, '<br>');
+          textEl.innerHTML = safeHtml;
           historyList.appendChild(li);
           if (!noScroll) {
             const body = document.getElementById('chat-messages');
@@ -760,6 +800,159 @@
               if (fileBadge) {
                 fileBadge.textContent = '';
                 fileBadge.classList.add('d-none');
+              }
+
+              if (isGeminiTopic && msg) {
+                fetch('{{ route('gemini.chat') }}', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                  },
+                  body: JSON.stringify({ topic: mqttTopic }),
+                })
+                  .then((response) =>
+                    response
+                      .json()
+                      .catch(() => ({}))
+                      .then((body) => {
+                        if (!response.ok) {
+                          const message =
+                            body.message ||
+                            (body.error && body.error.message) ||
+                            'Failed to get Gemini response';
+                          throw new Error(message);
+                        }
+                        return body;
+                      })
+                  )
+                  .then((gemini) => {
+                    const botPayload = JSON.stringify({
+                      sender: gemini.sender || 'Gemini',
+                      text: gemini.text || '',
+                      topic: gemini.topic || mqttTopic,
+                      attachment_url: gemini.attachment_url || null,
+                      attachment_name: gemini.attachment_name || null,
+                      attachment_type: gemini.attachment_type || null,
+                      avatar_url: gemini.avatar_url || null,
+                    });
+                    client.publish(mqttTopic, botPayload);
+                  })
+                  .catch((err) => {
+                    console.error('Failed to get Gemini response', err);
+                    addMessage(
+                      {
+                        text: 'Gemini error: ' + (err && err.message ? err.message : 'Unknown error'),
+                      },
+                      false,
+                      'Gemini',
+                      false,
+                      null
+                    );
+                  });
+              }
+
+              if (isDeepseekTopic && msg) {
+                fetch('{{ route('deepseek.chat') }}', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                  },
+                  body: JSON.stringify({ topic: mqttTopic }),
+                })
+                  .then((response) =>
+                    response
+                      .json()
+                      .catch(() => ({}))
+                      .then((body) => {
+                        if (!response.ok) {
+                          const message =
+                            body.message ||
+                            (body.error && body.error.message) ||
+                            'Failed to get DeepSeek response';
+                          throw new Error(message);
+                        }
+                        return body;
+                      })
+                  )
+                  .then((deepseek) => {
+                    const botPayload = JSON.stringify({
+                      sender: deepseek.sender || 'DeepSeek',
+                      text: deepseek.text || '',
+                      topic: deepseek.topic || mqttTopic,
+                      attachment_url: deepseek.attachment_url || null,
+                      attachment_name: deepseek.attachment_name || null,
+                      attachment_type: deepseek.attachment_type || null,
+                      avatar_url: deepseek.avatar_url || null,
+                    });
+                    client.publish(mqttTopic, botPayload);
+                  })
+                  .catch((err) => {
+                    console.error('Failed to get DeepSeek response', err);
+                    addMessage(
+                      {
+                        text: 'DeepSeek error: ' + (err && err.message ? err.message : 'Unknown error'),
+                      },
+                      false,
+                      'DeepSeek',
+                      false,
+                      null
+                    );
+                  });
+              }
+
+              if (isGroqTopic && msg) {
+                fetch('{{ route('groq.chat') }}', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                  },
+                  body: JSON.stringify({ topic: mqttTopic }),
+                })
+                  .then((response) =>
+                    response
+                      .json()
+                      .catch(() => ({}))
+                      .then((body) => {
+                        if (!response.ok) {
+                          const message =
+                            body.message ||
+                            (body.error && body.error.message) ||
+                            'Failed to get Groq response';
+                          throw new Error(message);
+                        }
+                        return body;
+                      })
+                  )
+                  .then((groq) => {
+                    const botPayload = JSON.stringify({
+                      sender: groq.sender || 'Groq',
+                      text: groq.text || '',
+                      topic: groq.topic || mqttTopic,
+                      attachment_url: groq.attachment_url || null,
+                      attachment_name: groq.attachment_name || null,
+                      attachment_type: groq.attachment_type || null,
+                      avatar_url: groq.avatar_url || null,
+                    });
+                    client.publish(mqttTopic, botPayload);
+                  })
+                  .catch((err) => {
+                    console.error('Failed to get Groq response', err);
+                    addMessage(
+                      {
+                        text: 'Groq error: ' + (err && err.message ? err.message : 'Unknown error'),
+                      },
+                      false,
+                      'Groq',
+                      false,
+                      null
+                    );
+                  });
               }
             })
             .catch((err) => {

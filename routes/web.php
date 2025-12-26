@@ -7,6 +7,9 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\HistoryMessageController;
+use App\Http\Controllers\DeepseekController;
+use App\Http\Controllers\GeminiController;
+use App\Http\Controllers\GroqController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -25,4 +28,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/rooms/join/{room}', [RoomController::class, 'join'])->name('rooms.join');
     Route::post('/rooms/{room}/leave', [RoomController::class, 'leave'])->name('rooms.leave');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
+
+    Route::post('/gemini/chat', [GeminiController::class, 'chat'])->name('gemini.chat');
+    Route::post('/deepseek/chat', [DeepseekController::class, 'chat'])->name('deepseek.chat');
+    Route::post('/groq/chat', [GroqController::class, 'chat'])->name('groq.chat');
 });
