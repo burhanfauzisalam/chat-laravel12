@@ -542,6 +542,13 @@
           return text.trim();
         }
 
+        function displayName(sender) {
+          if (!sender) return 'User';
+          const idx = sender.indexOf('@');
+          if (idx > 0) return sender.slice(0, idx);
+          return sender;
+        }
+
         function addMessage(message, self = false, sender = 'User', noScroll = false, avatarUrl = null) {
           let text = '';
           let attachmentUrl = null;
@@ -588,14 +595,14 @@
             }
           }
 
-          const leftAvatarHtml = self
+         const leftAvatarHtml = self
             ? ''
             : `<div class="user-avatar flex-shrink-0 me-4">
                  <div class="avatar avatar-sm">
                    ${ 
                      effectiveAvatar
-                       ? `<img src="${effectiveAvatar}" alt="${sender || 'User'}" class="rounded-circle" />`
-                       : `<span class="avatar-initial rounded-circle bg-label-primary">${(sender || 'U').slice(0, 2).toUpperCase()}</span>`
+                       ? `<img src="${effectiveAvatar}" alt="${displayName(sender) || 'User'}" class="rounded-circle" />`
+                       : `<span class="avatar-initial rounded-circle bg-label-primary">${(displayName(sender) || 'U').slice(0, 2).toUpperCase()}</span>`
                    }
                  </div>
                </div>`;
@@ -605,7 +612,7 @@
                  <div class="avatar avatar-sm">
                    ${ 
                      effectiveAvatar
-                       ? `<img src="${effectiveAvatar}" alt="${sender || 'You'}" class="rounded-circle" />`
+                       ? `<img src="${effectiveAvatar}" alt="${displayName(sender) || 'You'}" class="rounded-circle" />`
                        : `<span class="avatar-initial rounded-circle bg-label-success">Y</span>`
                    }
                  </div>
@@ -621,7 +628,7 @@
                   ${attachmentHtml}
                 </div>
                 <div class="${self ? 'text-end' : ''} text-body-secondary mt-1">
-                  <small>${self ? 'You' : sender || 'User'}</small>
+                  <small>${self ? 'You' : displayName(sender) || 'User'}</small>
                 </div>
               </div>
               ${rightAvatarHtml}
@@ -681,9 +688,23 @@
               const normalizedSender = (sender || '').toString().trim();
               const normalizedCurrentUser = (currentUser || '').toString().trim();
 
-              // Jangan render pesan yang dikirim oleh diri sendiri (sudah ditangani di sisi pengirim)
-              if (normalizedSender && normalizedSender === normalizedCurrentUser) {
-                return; // hindari menampilkan sebagai pesan masuk jika pengirim diri sendiri
+              if (messageTopic === geminiTopic) {
+                const isFromCurrentUser = normalizedSender && normalizedSender === normalizedCurrentUser;
+                const isFromCurrentGemini = normalizedSender && normalizedCurrentUser && normalizedSender === `Gemini@${normalizedCurrentUser}`;
+
+                if (!isFromCurrentUser && !isFromCurrentGemini) {
+                  return;
+                }
+
+                if (isFromCurrentUser) {
+                  // pesan user sendiri sudah di-render saat kirim
+                  return;
+                }
+              } else {
+                // Jangan render pesan yang dikirim oleh diri sendiri (sudah ditangani di sisi pengirim)
+                if (normalizedSender && normalizedSender === normalizedCurrentUser) {
+                  return; // hindari menampilkan sebagai pesan masuk jika pengirim diri sendiri
+                }
               }
 
               if (messageTopic === mqttTopic) {

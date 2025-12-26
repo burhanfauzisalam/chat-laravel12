@@ -11,6 +11,9 @@ class GeminiController extends Controller
 {
     public function chat(Request $request)
     {
+        $user = $request->user();
+        $currentUsername = $user?->username ?? null;
+
         $data = $request->validate([
             'topic' => ['required', 'string'],
         ]);
@@ -30,7 +33,17 @@ class GeminiController extends Controller
             ], 500);
         }
 
-        $messages = Message::where('topic', $topic)
+        $messagesQuery = Message::where('topic', $topic);
+
+        if ($currentUsername) {
+            $messagesQuery->where(function ($query) use ($currentUsername) {
+                $query
+                    ->where('sender', $currentUsername)
+                    ->orWhere('sender', 'Gemini@' . $currentUsername);
+            });
+        }
+
+        $messages = $messagesQuery
             ->orderByDesc('id')
             ->take(20)
             ->get()
@@ -44,8 +57,15 @@ class GeminiController extends Controller
         }
 
         $contents = $messages
-            ->map(function (Message $message) {
-                $role = $message->sender === 'Gemini' ? 'model' : 'user';
+            ->map(function (Message $message) use ($currentUsername) {
+                $isModel = false;
+                if ($currentUsername) {
+                    $isModel = $message->sender === 'Gemini@' . $currentUsername;
+                } else {
+                    $isModel = $message->sender === 'Gemini';
+                }
+
+                $role = $isModel ? 'model' : 'user';
 
                 return [
                     'role' => $role,
@@ -111,7 +131,7 @@ class GeminiController extends Controller
             ], 500);
         }
 
-        $sender = 'Gemini';
+        $sender = $currentUsername ? 'Gemini@' . $currentUsername : 'Gemini';
 
         $message = Message::create([
             'sender' => $sender,

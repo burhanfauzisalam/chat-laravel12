@@ -18,6 +18,9 @@ class HistoryMessageController extends Controller
             abort(403);
         }
 
+        $currentUsername = $user->username ?? null;
+        $geminiTopic = config('services.gemini.topic');
+
         $data = $request->validate([
             'topic' => ['required', 'string'],
             'before_id' => ['nullable', 'integer'],
@@ -35,6 +38,14 @@ class HistoryMessageController extends Controller
 
         $query = Message::where('topic', $topic);
 
+        if ($topic === $geminiTopic && $currentUsername) {
+            $query->where(function ($q) use ($currentUsername) {
+                $q
+                    ->where('sender', $currentUsername)
+                    ->orWhere('sender', 'Gemini@' . $currentUsername);
+            });
+        }
+
         if (!empty($data['before_id'])) {
             $query->where('id', '<', $data['before_id']);
         }
@@ -51,9 +62,19 @@ class HistoryMessageController extends Controller
 
         if ($messages->isNotEmpty()) {
             $oldestId = $messages->first()->id;
-            $hasMore = Message::where('topic', $topic)
-                ->where('id', '<', $oldestId)
-                ->exists();
+
+            $moreQuery = Message::where('topic', $topic)
+                ->where('id', '<', $oldestId);
+
+            if ($topic === $geminiTopic && $currentUsername) {
+                $moreQuery->where(function ($q) use ($currentUsername) {
+                    $q
+                        ->where('sender', $currentUsername)
+                        ->orWhere('sender', 'Gemini@' . $currentUsername);
+                });
+            }
+
+            $hasMore = $moreQuery->exists();
             $nextBeforeId = $oldestId;
         }
 
@@ -98,4 +119,3 @@ class HistoryMessageController extends Controller
         ]);
     }
 }
-

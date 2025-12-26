@@ -15,6 +15,7 @@ class ChatController extends Controller
         $mqttConfig = config('services.mqtt');
         $user = $request->user();
         $currentUser = $user?->username ?? 'Guest';
+        $geminiTopic = config('services.gemini.topic');
 
         $rooms = $user
             ? $user->rooms()->withCount('users')->orderBy('id')->get()
@@ -80,8 +81,17 @@ class ChatController extends Controller
         if ($activeTopic) {
             $perPage = 50;
 
-            $baseQuery = Message::where('topic', $activeTopic)
-                ->orderBy('id', 'desc');
+            $baseQuery = Message::where('topic', $activeTopic);
+
+            if ($user && $activeTopic === $geminiTopic && $currentUser) {
+                $baseQuery->where(function ($query) use ($currentUser) {
+                    $query
+                        ->where('sender', $currentUser)
+                        ->orWhere('sender', 'Gemini@' . $currentUser);
+                });
+            }
+
+            $baseQuery->orderBy('id', 'desc');
 
             $pageMessagesDesc = $baseQuery
                 ->take($perPage)
@@ -91,9 +101,19 @@ class ChatController extends Controller
 
             if ($messages->isNotEmpty()) {
                 $oldestMessageId = $messages->first()->id;
-                $hasMoreHistory = Message::where('topic', $activeTopic)
-                    ->where('id', '<', $oldestMessageId)
-                    ->exists();
+
+                $moreQuery = Message::where('topic', $activeTopic)
+                    ->where('id', '<', $oldestMessageId);
+
+                if ($user && $activeTopic === $geminiTopic && $currentUser) {
+                    $moreQuery->where(function ($query) use ($currentUser) {
+                        $query
+                            ->where('sender', $currentUser)
+                            ->orWhere('sender', 'Gemini@' . $currentUser);
+                    });
+                }
+
+                $hasMoreHistory = $moreQuery->exists();
             }
         }
 
@@ -134,9 +154,13 @@ class ChatController extends Controller
                     $query->where('created_at', '>', $lastReadAt);
                 }
 
-                // Selaras dengan frontend: hanya hitung pesan dari user lain
                 if ($currentUser) {
-                    $query->where('sender', '!=', $currentUser);
+                    if ($room->topic === $geminiTopic) {
+                        $query->where('sender', 'Gemini@' . $currentUser);
+                    } else {
+                        // Selaras dengan frontend: hanya hitung pesan dari user lain
+                        $query->where('sender', '!=', $currentUser);
+                    }
                 }
 
                 $room->unread_count = $query->count();
