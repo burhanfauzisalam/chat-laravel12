@@ -61,4 +61,9 @@ return [
         'topic' => env('GROQ_TOPIC', 'groq'),
     ],
 
+    'dataassistant' => [
+        'topic' => env('DATAASSISTANT_TOPIC', 'dataassistant'),
+        'training_topic' => env('DATAASSISTANT_TRAINING_TOPIC', 'dataassistant/training'),
+    ],
+
 ];

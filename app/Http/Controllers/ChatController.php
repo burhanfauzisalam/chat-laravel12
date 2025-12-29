@@ -16,6 +16,7 @@ class ChatController extends Controller
         $user = $request->user();
         $currentUser = $user?->username ?? 'Guest';
         $geminiTopic = config('services.gemini.topic');
+        $dataAssistantTopic = config('services.dataassistant.topic');
 
         $rooms = $user
             ? $user->rooms()->withCount('users')->orderBy('id')->get()
@@ -83,12 +84,20 @@ class ChatController extends Controller
 
             $baseQuery = Message::where('topic', $activeTopic);
 
-            if ($user && $activeTopic === $geminiTopic && $currentUser) {
-                $baseQuery->where(function ($query) use ($currentUser) {
-                    $query
-                        ->where('sender', $currentUser)
-                        ->orWhere('sender', 'Gemini@' . $currentUser);
-                });
+            if ($user && $currentUser) {
+                if ($activeTopic === $geminiTopic) {
+                    $baseQuery->where(function ($query) use ($currentUser) {
+                        $query
+                            ->where('sender', $currentUser)
+                            ->orWhere('sender', 'Gemini@' . $currentUser);
+                    });
+                } elseif ($activeTopic === $dataAssistantTopic) {
+                    $baseQuery->where(function ($query) use ($currentUser) {
+                        $query
+                            ->where('sender', $currentUser)
+                            ->orWhere('sender', 'DataBot@' . $currentUser);
+                    });
+                }
             }
 
             $baseQuery->orderBy('id', 'desc');
@@ -105,12 +114,20 @@ class ChatController extends Controller
                 $moreQuery = Message::where('topic', $activeTopic)
                     ->where('id', '<', $oldestMessageId);
 
-                if ($user && $activeTopic === $geminiTopic && $currentUser) {
-                    $moreQuery->where(function ($query) use ($currentUser) {
-                        $query
-                            ->where('sender', $currentUser)
-                            ->orWhere('sender', 'Gemini@' . $currentUser);
-                    });
+                if ($user && $currentUser) {
+                    if ($activeTopic === $geminiTopic) {
+                        $moreQuery->where(function ($query) use ($currentUser) {
+                            $query
+                                ->where('sender', $currentUser)
+                                ->orWhere('sender', 'Gemini@' . $currentUser);
+                        });
+                    } elseif ($activeTopic === $dataAssistantTopic) {
+                        $moreQuery->where(function ($query) use ($currentUser) {
+                            $query
+                                ->where('sender', $currentUser)
+                                ->orWhere('sender', 'DataBot@' . $currentUser);
+                        });
+                    }
                 }
 
                 $hasMoreHistory = $moreQuery->exists();
@@ -157,6 +174,8 @@ class ChatController extends Controller
                 if ($currentUser) {
                     if ($room->topic === $geminiTopic) {
                         $query->where('sender', 'Gemini@' . $currentUser);
+                    } elseif ($room->topic === $dataAssistantTopic) {
+                        $query->where('sender', 'DataBot@' . $currentUser);
                     } else {
                         // Selaras dengan frontend: hanya hitung pesan dari user lain
                         $query->where('sender', '!=', $currentUser);

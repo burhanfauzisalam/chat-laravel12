@@ -170,6 +170,8 @@
         const isDeepseekTopic = Boolean(mqttTopic && deepseekTopic && mqttTopic === deepseekTopic);
         const groqTopic = @json(config('services.groq.topic'));
         const isGroqTopic = Boolean(mqttTopic && groqTopic && mqttTopic === groqTopic);
+        const dataAssistantTopic = @json(config('services.dataassistant.topic'));
+        const isDataAssistantTopic = Boolean(mqttTopic && dataAssistantTopic && mqttTopic === dataAssistantTopic);
         let hasMoreHistory = @json($hasMoreHistory ?? false);
         let oldestMessageId = @json($oldestMessageId ?? null);
 
@@ -868,6 +870,57 @@
                       },
                       false,
                       'Gemini',
+                      false,
+                      null
+                    );
+                  });
+              }
+
+              if (isDataAssistantTopic && msg) {
+                fetch('{{ route('dataassistant.chat') }}', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                  },
+                  body: JSON.stringify({ topic: mqttTopic }),
+                })
+                  .then((response) =>
+                    response
+                      .json()
+                      .catch(() => ({}))
+                      .then((body) => {
+                        if (!response.ok) {
+                          const message =
+                            body.message ||
+                            (body.error && body.error.message) ||
+                            'Failed to get Data Assistant response';
+                          throw new Error(message);
+                        }
+                        return body;
+                      })
+                  )
+                  .then((dataassistant) => {
+                    const botPayload = JSON.stringify({
+                      sender: dataassistant.sender || 'DataBot',
+                      text: dataassistant.text || '',
+                      topic: dataassistant.topic || mqttTopic,
+                      attachment_url: dataassistant.attachment_url || null,
+                      attachment_name: dataassistant.attachment_name || null,
+                      attachment_type: dataassistant.attachment_type || null,
+                      avatar_url: dataassistant.avatar_url || null,
+                    });
+                    client.publish(mqttTopic, botPayload);
+                  })
+                  .catch((err) => {
+                    console.error('Failed to get Data Assistant response', err);
+                    addMessage(
+                      {
+                        text: 'Data Assistant error: ' + (err && err.message ? err.message : 'Unknown error'),
+                      },
+                      false,
+                      'DataBot',
                       false,
                       null
                     );
