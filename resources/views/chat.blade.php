@@ -818,12 +818,12 @@
               if (fileInput) {
                 fileInput.value = '';
               }
-              if (fileBadge) {
-                fileBadge.textContent = '';
-                fileBadge.classList.add('d-none');
-              }
-
-              if (isGeminiTopic && msg) {
+                if (fileBadge) {
+                  fileBadge.textContent = '';
+                  fileBadge.classList.add('d-none');
+                }
+  
+              if (isGeminiTopic && (msg || file)) {
                 fetch('{{ route('gemini.chat') }}', {
                   method: 'POST',
                   headers: {

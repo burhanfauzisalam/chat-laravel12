@@ -6,6 +6,8 @@ use App\Models\Message;
 use Illuminate\Http\Client\Response as HttpClientResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class GeminiController extends Controller
 {
@@ -56,27 +58,100 @@ class GeminiController extends Controller
             ], 422);
         }
 
+        $latestMessage = $messages->last();
+        $latestPdfHasNoText = false;
+
         $contents = $messages
-            ->map(function (Message $message) use ($currentUsername) {
-                $isModel = false;
-                if ($currentUsername) {
-                    $isModel = $message->sender === 'Gemini@' . $currentUsername;
-                } else {
-                    $isModel = $message->sender === 'Gemini';
-                }
+            ->map(function (Message $message) use ($currentUsername, $latestMessage, &$latestPdfHasNoText) {
+                $isModel = $currentUsername
+                    ? $message->sender === 'Gemini@' . $currentUsername
+                    : $message->sender === 'Gemini';
 
                 $role = $isModel ? 'model' : 'user';
 
+                $parts = [];
+
+                $text = (string) ($message->text ?? '');
+                if ($text !== '') {
+                    $parts[] = [
+                        'text' => $text,
+                    ];
+                }
+
+                if ($message->attachment_path && $message->attachment_type && !$isModel) {
+                    try {
+                        $disk = Storage::disk('public');
+
+                        if ($disk->exists($message->attachment_path)) {
+                            $mimeType = $message->attachment_type;
+                            $isLatest = $latestMessage && $message->id === $latestMessage->id;
+
+                            if (Str::startsWith($mimeType, 'image/')) {
+                                $binary = $disk->get($message->attachment_path);
+
+                                if ($binary !== null && $binary !== false) {
+                                    $parts[] = [
+                                        'inlineData' => [
+                                            'mimeType' => $mimeType,
+                                            'data' => base64_encode($binary),
+                                        ],
+                                    ];
+                                }
+                            } elseif ($mimeType === 'application/pdf' || Str::contains($mimeType, 'pdf')) {
+                                $attachmentText = null;
+
+                                if (class_exists(\Smalot\PdfParser\Parser::class)) {
+                                    $parser = new \Smalot\PdfParser\Parser();
+                                    $pdf = $parser->parseContent($disk->get($message->attachment_path));
+                                    $textFromPdf = $pdf->getText();
+
+                                    if (is_string($textFromPdf) && $textFromPdf !== '') {
+                                        $attachmentText = trim($textFromPdf);
+
+                                        if (strlen($attachmentText) > 4000) {
+                                            $attachmentText = substr($attachmentText, 0, 4000) . "\n\n[Konten PDF dipotong untuk menjaga batas konteks]";
+                                        }
+                                    } elseif ($isLatest) {
+                                        $latestPdfHasNoText = true;
+                                    }
+                                } elseif ($isLatest) {
+                                    $latestPdfHasNoText = true;
+                                }
+
+                                if ($attachmentText) {
+                                    $label = $message->attachment_name ?: 'file PDF';
+                                    $parts[] = [
+                                        'text' => "Ini adalah teks yang diekstrak dari {$label}:\n\n" . $attachmentText,
+                                    ];
+                                }
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                    }
+                }
+
+                if (empty($parts)) {
+                    $parts[] = [
+                        'text' => '',
+                    ];
+                }
+
                 return [
                     'role' => $role,
-                    'parts' => [
-                        [
-                            'text' => $message->text,
-                        ],
-                    ],
+                    'parts' => $parts,
                 ];
             })
             ->all();
+
+        if ($latestPdfHasNoText) {
+            return response()->json([
+                'message' => 'File PDF tidak memiliki teks yang bisa dibaca. Silakan unggah sebagai gambar atau gunakan PDF yang berisi teks.',
+                'details' => [
+                    'reason' => 'pdf_no_text',
+                    'topic' => $topic,
+                ],
+            ], 422);
+        }
 
         $styleInstruction = 'Kamu adalah asisten AI di dalam aplikasi chat. '
             . 'Jawab dengan bahasa yang rapi dan singkat. '
